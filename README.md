@@ -95,11 +95,11 @@ print(helpers.set_dynamic_level(0.0042141, min_level=-1, max_level=1))
 """
 Acknowledgment:
 
-I have no idea if the heuristic used for loss scaling exists or not,
-if so, I would be happy to get a link to this reference.
+I have no idea if the heuristics used for the loss scale exists or not, 
+if yes, I would be happy to get a link to that reference.
  
 Also, most of the experiments that have been made demonstrate that it works fine. 
-However, I believe they not sufficient.
+However, I think they are insufficient.
 """
 ```
 
