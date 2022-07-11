@@ -1,5 +1,18 @@
 # StyleGAN2 - Tensorflow +2.4.x
 
+## About
+
+|                   Feature                   |   Supported    |
+|:-------------------------------------------:|:--------------:|
+|          `Equalized Learning Rate`          |       ✅        | 
+| `Style Mixing Regularization` [_Optional_]  |       ⬜️       |
+|             `Truncation Trick`              |       ✅️       |
+|      `Gradient Clipping` [_Optional_]       |       ✅️       |
+|            `Multi-GPU Training`             |       ✅️       |
+|               `TPU Training`                |       ✅️       |
+|              `Conditional GAN`              |       ✅️       |
+|        `Exponential Moving Average`         |       ⬜️       |
+
 ## Build StyleGAN2 Model
 
 ```python
