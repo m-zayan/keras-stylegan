@@ -22,7 +22,7 @@ def kl_divergence_loss(target, predicted):
 
 # noinspection PyUnusedLocal
 def generator_logistic_loss(real_labels, fake_labels, real_scores, fake_scores,
-                            penalty=0.0, min_level=-1, max_level=1):
+                            penalty=0.0, min_level=-2, max_level=0):
 
     p1 = tf.nn.sigmoid(fake_labels * fake_scores + penalty)
     p2 = tf.nn.sigmoid(fake_labels * fake_scores - penalty)
@@ -35,7 +35,7 @@ def generator_logistic_loss(real_labels, fake_labels, real_scores, fake_scores,
 
 # noinspection PyUnusedLocal
 def discriminator_logistic_loss(real_labels, fake_labels, real_scores, fake_scores,
-                                penalty=0.0, min_level=-1, max_level=0):
+                                penalty=0.0, min_level=-2, max_level=0):
 
     epsilon = backend.epsilon()
 
@@ -54,7 +54,7 @@ def discriminator_logistic_loss(real_labels, fake_labels, real_scores, fake_scor
 
 
 # noinspection PyUnusedLocal
-def generator_wgan_loss(real_labels, fake_labels, real_scores, fake_scores, min_level=-1, max_level=1):
+def generator_wgan_loss(real_labels, fake_labels, real_scores, fake_scores, min_level=-2, max_level=0):
 
     max_term = -(fake_labels * fake_scores)
 
@@ -65,7 +65,7 @@ def generator_wgan_loss(real_labels, fake_labels, real_scores, fake_scores, min_
 
 # noinspection PyUnusedLocal
 def discriminator_wgan_loss(real_labels, fake_labels, real_scores, fake_scores,
-                            wgan_epsilon=1e-4, min_level=-1, max_level=0):
+                            wgan_epsilon=1e-4, min_level=-2, max_level=0):
 
     min_term = fake_labels * fake_scores
     max_term = -(real_labels * real_scores)
@@ -80,7 +80,7 @@ def discriminator_wgan_loss(real_labels, fake_labels, real_scores, fake_scores,
 
 # -------------------------------------------------------------------------------------------------------------------
 
-def wgan_gradient_penalty(mixed_gradients, wgan_target=1.0, wgan_lambda=10.0, min_level=-1, max_level=1):
+def wgan_gradient_penalty(mixed_gradients, wgan_target=1.0, wgan_lambda=10.0, min_level=-2, max_level=0):
 
     slopes_norms = tf.math.reduce_sum(mixed_gradients ** 2.0, axis=[1, 2, 3], keepdims=True)
     slopes_norms = tf.sqrt(slopes_norms)
@@ -91,3 +91,11 @@ def wgan_gradient_penalty(mixed_gradients, wgan_target=1.0, wgan_lambda=10.0, mi
     penalty = tf.math.reduce_mean(penalty)
 
     return helpers.set_dynamic_level(penalty, min_level=min_level, max_level=max_level)
+
+
+# -------------------------------------------------------------------------------------------------------------------
+
+# noinspection PyUnusedLocal
+def ada_state_estimator(real_labels, fake_labels, real_scores, fake_scores):
+
+    return tf.math.reduce_min(real_labels * real_scores)

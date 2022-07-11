@@ -58,7 +58,13 @@ def estimate_local_level(x):
 
 def get_level_scale(level):
 
-    scale = 1.0 / 10 ** level
+    e = tf.cast(level, dtype=tf.float32)
+    x = tf.cast(10.0, dtype=tf.float32)
+
+    a = tf.pow(x, e)
+    b = tf.cast(1.0, dtype=tf.float32)
+
+    scale = tf.divide(b, a)
 
     return scale
 
@@ -69,16 +75,17 @@ def set_dynamic_level(x, min_level=-1, max_level=1):
 
     local_level = estimate_local_level(x)
 
+    level = compare(local_level, min_level, max_level)
+    level = tf.cast(local_level - level, dtype=tf.float32)
+
     def inner():
 
-        scale = tf.cast(1.0, dtype=tf.float32)
+        scale = get_level_scale(tf.zeros_like(level))
 
         return scale
 
     def outer():
 
-        level = compare(local_level, min_level, max_level)
-        level = tf.cast(local_level - level, dtype=tf.float32)
         scale = get_level_scale(level)
 
         return scale

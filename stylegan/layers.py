@@ -1176,26 +1176,30 @@ class AdaptiveRandomState(Layer):
 
     def update_state(self, state, step_factor=1):
 
-        step = tf.math.floormod(self.current_step, self.num_cycles * self.cycle_length)
-        step += 1
+        k = tf.identity(self.current_step)
+        current_state = tf.identity(self.current_state)
 
-        is_next = tf.reduce_all(tf.equal(0, tf.math.floormod(step, self.cycle_length)))
+        k = tf.math.floormod(k, self.num_cycles * self.cycle_length)
+        k = tf.add(k, 1)
+
+        is_next = tf.reduce_all(tf.equal(0, tf.math.floormod(k, self.cycle_length)))
         is_next = tf.logical_and(tf.logical_not(self.is_idle()), is_next)
+
+        a = tf.cast(k * step_factor, dtype=tf.float32)
+        b = tf.cast(1.0, dtype=tf.float32)
+
+        ratio = tf.divide(b, a)
 
         def get_next_state(state):
 
-            current_state = tf.identity(self.current_state)
-
-            a = 1.0 / tf.cast(step * step_factor, dtype=tf.float32)
-
-            next_state = (1.0 - a) * current_state + a * tf.nn.tanh(state)
+            next_state = (1.0 - ratio) * current_state + ratio * tf.nn.tanh(state)
 
             return next_state
 
-        next_state = tf.cond(is_next, lambda: get_next_state(state), lambda: tf.identity(self.current_state))
+        next_state = tf.cond(is_next, lambda: get_next_state(state), lambda: current_state)
 
         self.current_state.assign(next_state)
-        self.current_step.assign(step)
+        self.current_step.assign(k)
 
     def state(self):
 

@@ -14,7 +14,8 @@ class StyleGAN(Model):
     
     def __init__(self, latent_shape, num_clusters, mapping: Model, synthesis: Model,
                  discriminator: Model, batch_size=None, use_pseudo_labels=False, augmenter=None,
-                 ada_target=1.0, ada_step=100, recursive_lookup=False, **kwargs):
+                 ada_target=1.0, ada_step=100, on_batch_ada=False, ada_state_estimator=None,
+                 recursive_lookup=False, **kwargs):
 
         super(StyleGAN, self).__init__(**kwargs)
 
@@ -34,10 +35,12 @@ class StyleGAN(Model):
         self.mixer = gan_layers.PixelMixer(axis=3, name='pixel_mixer')
 
         self.augmenter = gan_layers.AdaptiveRandomState(fn=augmenter, alter=None, initial_state=-1.0,
-                                                        cycle_length=4, num_cycles=8, on_batch=False, name='ada')
+                                                        cycle_length=4, num_cycles=8, on_batch=on_batch_ada, name='ada')
 
         self.ada_target = ada_target
         self.ada_step = ada_step
+
+        self.ada_state_estimator = ada_state_estimator if ada_state_estimator else functional.ada_state_estimator
 
         self.recursive_lookup = recursive_lookup
 
@@ -165,7 +168,7 @@ class StyleGAN(Model):
 
             # [update states] ======================================================================================
 
-            state = tf.math.reduce_min(real_scores)
+            state = self.ada_state_estimator(real_labels, fake_labels, real_scores, fake_scores)
             self.augmenter.update_state(state - self.ada_target, step_factor=batch_size*self.ada_step)
 
             # [losses] =============================================================================================
