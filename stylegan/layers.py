@@ -7,6 +7,7 @@ from tensorflow.keras.layers import Layer
 from tensorflow.python.keras.utils import conv_utils
 
 from . import processing
+from . import helpers
 
 
 # --------------------------------------------------------------------------------------------------------------------
@@ -104,6 +105,16 @@ def deconv2d_output_shape(input_shape, filters, kernel_size, padding, strides):
 # --------------------------------------------------------------------------------------------------------------------
 
 
+def get_pad_size(dim, window_size):
+
+    pad = (dim + window_size) % window_size
+
+    return window_size - pad if pad else 0
+
+
+# --------------------------------------------------------------------------------------------------------------------
+
+
 class AddBias(Layer):
 
     def __init__(self, axis=None, **kwargs):
@@ -193,7 +204,7 @@ class LearnableConstant(Layer):
 
 class LearnableNoise(Layer):
 
-    def __init__(self, stddev=1.0, axis=None, training_only=False, **kwargs):
+    def __init__(self, stddev=1.0, axis=None, initializer='zeros', training_only=False, **kwargs):
 
         super().__init__(**kwargs)
 
@@ -203,13 +214,15 @@ class LearnableNoise(Layer):
 
         self.stddev = stddev
         self.axis = axis
+        self.initializer = initializer
 
         self.training_only = training_only
 
     def get_config(self):
 
         cfgs = super().get_config()
-        cfgs.update({'axis': self.axis, 'stddev': self.stddev, 'training_only': self.training_only})
+        cfgs.update({'axis': self.axis, 'stddev': self.stddev, 'initializer': self.initializer,
+                     'training_only': self.training_only})
 
         return cfgs
 
@@ -227,7 +240,8 @@ class LearnableNoise(Layer):
             self.axis, shape = get_broadcastable_shape(input_shape, axis=self.axis)
 
         # initialize
-        self.strength = self.add_weight(shape=shape, initializer='zeros', trainable=True, name='strength')
+        self.strength = self.add_weight(shape=shape, initializer=self.initializer,
+                                        trainable=True, name='strength')
 
     def set_weights(self, weights):
 
@@ -350,7 +364,7 @@ class PixelMixer(Layer):
 
     def update_rho(self):
 
-        self.rho.assign(tf.clip_by_value(self.rho, clip_value_min=-2.0, clip_value_max=2.0))
+        self.rho.assign(helpers.set_dynamic_level(self.rho, min_level=-12, max_level=1))
 
     def get_factors(self, reference_images):
 
@@ -369,7 +383,7 @@ class PixelMixer(Layer):
         a = self.get_factors(reference_images)
 
         mixture = reference_images + a * (target_images - reference_images)
-        mixture = tf.clip_by_value(mixture, clip_value_min=self.values_range[0], clip_value_max=self.values_range[1])
+        mixture = helpers.set_dynamic_level(mixture, min_level=-12, max_level=0)
 
         return mixture
 
@@ -1263,8 +1277,7 @@ class Residual(Layer):
 
     def call(self, x, y):
 
-        # TODO: consider using helpers.set_dynamic_level(...) instead of tf.clip_by_value(...)
-        outputs = tf.clip_by_value(x + y, clip_value_min=-1.0, clip_value_max=1.0)
+        outputs = (x + y) * tf.math.rsqrt(2.0)
 
         return outputs
 
@@ -1334,5 +1347,69 @@ class Resample(Layer):
     def call(self, inputs):
 
         outputs = self.resize_nearest(inputs)
+
+        return outputs
+
+# --------------------------------------------------------------------------------------------------------------------
+
+
+class PixelShuffle(EqualizedConv2D):
+
+    def __init__(self, factor, filters, activation='linear', kernel_initializer='random_normal', **kwargs):
+
+        assert abs(factor) > 1, f'Invalid shuffling factor={factor} | PixelShuffle(...)'
+
+        filters = filters * factor**2 if factor > 0 else max(1, filters // (factor ** 2))
+
+        super().__init__(filters=filters, kernel_size=(1, 1), padding='valid', activation=activation,
+                         transposed=False, kernel_initializer=kernel_initializer, **kwargs)
+
+        self.factor = factor
+        self.scale = abs(factor)
+
+    def get_config(self):
+
+        cfgs = super().get_config()
+
+        cfgs.update({'factor': self.factor})
+
+        return cfgs
+
+    # noinspection PyAttributeOutsideInit
+    def build(self, input_shape):
+
+        self.resample_shape = [input_shape[0], input_shape[1], input_shape[2], input_shape[3]]
+
+        self.height = input_shape[1]
+        self.weight = input_shape[2]
+        self.channels = input_shape[3]
+
+        if self.factor < 0:
+
+            pad_height = get_pad_size(self.height, self.scale)
+            pad_width = get_pad_size(self.weight, self.scale)
+
+            self.kernel_size = (pad_height + 1, pad_width + 1)
+            self.transposed = True
+
+            self.height += pad_height
+            self.weight += pad_width
+
+            self.resample_shape = (input_shape[0], self.height // self.scale, self.weight // self.scale,
+                                   self.channels * self.scale ** 2)
+
+        super().build(input_shape)
+
+    def call(self, inputs):
+
+        outputs = super().call(inputs)
+
+        if self.factor < 0:
+
+            outputs = tf.nn.space_to_depth(outputs, self.scale)
+
+        else:
+
+            outputs = tf.nn.depth_to_space(outputs, self.scale)
 
         return outputs

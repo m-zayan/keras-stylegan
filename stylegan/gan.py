@@ -69,8 +69,9 @@ def upsampling2d(inputs, factor, name=None):
 
 def downsampling2d(inputs, factor, name=None):
 
-    x = gan_layers.Blur(normalized=True, name=name + '/blur')(inputs)
-    x = gan_layers.Resample(factor=-factor, name=name + '/downsample' if name else None)(x)
+    fan_in = inputs.shape[-1]
+
+    x = gan_layers.PixelShuffle(factor=-factor, filters=fan_in, name=name + '/downsample' if name else None)(inputs)
 
     return x
 
